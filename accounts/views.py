@@ -10,6 +10,7 @@ from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
+from transaction.views import send_transaction_email
 # Create your views here.
 class UserRegistrationView(FormView):
     template_name='user_registration.html'
@@ -57,7 +58,7 @@ def change_pass(request):
             form.save()
             messages.success(request, 'Password change successfully')
             update_session_auth_hash(request, form.user)
-            # send_transaction_email(request.user, 0, 'Password Change Confirmation', 'accounts/password_change_email.html' )
+            send_transaction_email(request.user, 0, 'Password Change Confirmation', 'pass_change_email.html' )
             return redirect('profile')
     else:
         form = PasswordChangeForm(request.user)

@@ -1,7 +1,7 @@
 from django import forms
 from . models import Transaction
 
-
+BANKRUPT=False
 class TransactionForm(forms.ModelForm):
     
     class Meta:
@@ -20,6 +20,8 @@ class TransactionForm(forms.ModelForm):
         return super().save()
 class DepositForm(TransactionForm):
     def clean_amount(self):
+        if BANKRUPT:
+            raise forms.ValidationError(f'Bank is bankrupt!!!')
         min_deposit_amount = 100
         amount = self.cleaned_data.get('amount')
 
@@ -31,6 +33,8 @@ class DepositForm(TransactionForm):
     
 class WithDrawalForm(TransactionForm):
     def clean_amount(self):
+        if BANKRUPT:
+            raise forms.ValidationError(f'Bank is bankrupt!!!')
         account = self.user_account
         min_withdraw_amount = 500
         max_withdraw_amount = 20000
@@ -50,6 +54,26 @@ class WithDrawalForm(TransactionForm):
                 'You can not withdraw more than your account balance'
             )
         return amount
+
+class TransferMoneyForm(TransactionForm):
+    class Meta:
+        model = Transaction
+        fields = ['amount', 'transaction_type','receiver_account_no']
+    def clean_amount(self):
+        if BANKRUPT:
+            raise forms.ValidationError(f'Bank is bankrupt!')
+        min_deposit_amount = 100
+        amount = self.cleaned_data.get('amount')
+
+        if amount < min_deposit_amount:
+            raise forms.ValidationError(
+                f'You need to deposit at least {min_deposit_amount}$'
+            )
+        return amount
+    def save(self, commit: bool = True) :
+        self.instance.account = self.user_account
+        self.instance.balance_after_transaction = self.instance.account.balance
+        return super().save(commit)
 class LoanRequestForm(TransactionForm):
     def clean_amount(self):
         amount = self.cleaned_data["amount"]    

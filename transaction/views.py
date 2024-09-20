@@ -3,11 +3,11 @@ from django.views.generic import CreateView, ListView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from .models import Transaction
 from django.views import View
-from .forms import DepositForm, LoanRequestForm, WithDrawalForm
+from .forms import DepositForm, LoanRequestForm, WithDrawalForm,TransferMoneyForm
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.shortcuts import render,redirect, get_object_or_404
-from .constants import DEPOSIT, LOAN_PAID, LOAN, WITHDRAWAL
+from .constants import DEPOSIT, LOAN_PAID, LOAN, WITHDRAWAL,MONEY_TRANSFER
 from django.http import HttpResponse
 from datetime import datetime
 from django.db.models import Sum
@@ -163,3 +163,32 @@ class LoanListView(LoginRequiredMixin, ListView):
           queryset = Transaction.objects.filter(account = user_account, transaction_type = LOAN)
           return queryset
     
+class TransferMoneyView(TransactionCreateMixin):
+    form_class = TransferMoneyForm
+    title = 'Transfer Money'
+    def get_initial(self):
+        initial = {'transaction_type': MONEY_TRANSFER}
+        return initial
+    # ['amount', 'transaction_type', 'sender_account_no','receiver_account_no']
+    def form_valid(self, form):
+        amount = form.cleaned_data.get('amount')
+        receiver_account_no = form.cleaned_data.get('receiver_account_no')
+        account = self.request.user.account
+        receiver_account = get_object_or_404(UserBank, account_no=receiver_account_no)
+        if amount < 0:
+            messages.warning(self.request, "amount is invalid")
+        elif account.balance < amount:
+            messages.warning(self.request, "You Don't have enough balance")
+        elif receiver_account and receiver_account_no != account.account_no:
+            receiver_account.balance += amount
+            account.balance -= amount
+            account.save(update_fields = ['balance'])
+            receiver_account.save(update_fields = ['balance'])
+            # send email to the money sender
+            send_transaction_email(self.request.user, amount, 'Money Transfer Confirmation', 'transaction/send_money_email.html')
+            # send email to the money receiver
+            send_transaction_email(receiver_account.user, amount, 'Money Transfer Confirmation', 'transaction/recieve_money_email.html')
+        else:
+            messages.warning(self.request, "Receiver account number is not valid")
+
+        return super().form_valid(form)
